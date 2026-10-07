@@ -12,10 +12,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import it.unina.trafficanalyzer.ui.theme.TrafficAnalyzerTheme
+import android.util.Log
+import it.unina.trafficanalyzer.data.DatasetLoader
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // PROVVISORIO: legge i file sul thread principale, da togliere dopo la verifica
+        val loader = DatasetLoader(this)
+        val train = loader.loadTrain()
+        val stream = loader.loadStream()
+        Log.d("Dataset", "train=${train.size} stream=${stream.size} attacchi=${stream.count { it.isAttack }}")
         enableEdgeToEdge()
         setContent {
             TrafficAnalyzerTheme {
