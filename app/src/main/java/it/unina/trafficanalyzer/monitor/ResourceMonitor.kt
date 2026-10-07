@@ -14,7 +14,7 @@ class ResourceSample(
 /**
  * Misura CPU, memoria e thread del processo mentre la pipeline lavora.
  * Contratto: start() avvia un thread separato che campiona ogni intervalMillis.
- * samples() può essere chiamato da un altro thread mentre il monitor scrive,
+ * Samples() può essere chiamato da un altro thread mentre il monitor scrive,
  * quindi l'implementazione deve sincronizzare l'accesso e restituire una copia.
  */
 interface ResourceMonitor {
