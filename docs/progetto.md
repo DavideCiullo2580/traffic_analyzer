@@ -1,6 +1,6 @@
 # Mobile IoT Traffic Analyzer: documento di progetto
 
-Aggiornato al 7 ottobre 2026 · Davide Ciullo
+Aggiornato al 19 novembre 2026 · Davide Ciullo
 
 ## Panoramica
 
@@ -33,11 +33,11 @@ Stato: progetto creato e su GitHub, dati caricati e verificati, le quattro inter
 Tutto sta in `traffic-analyzer/`, repository Git privato su GitHub, branch `main`. In Android Studio usare la vista **Project** (non Android) per vedere le cartelle vere.
 
 - `app/src/main/java/it/unina/trafficanalyzer/`: codice Kotlin dell'app, package `it.unina.trafficanalyzer`.
-    - `data/`: lettura del dataset (`TrafficRecord`, `DatasetParser`, `DatasetLoader`).
-    - `classifier/`: interfaccia `Classifier` (il k-NN di Francesco andrà qui).
-    - `pipeline/`: `PipelineConfig` e `PipelineMetrics` (worker, coda e simulatore andranno qui).
-    - `monitor/`: interfaccia `ResourceMonitor` (l'implementazione di Francesco andrà qui).
-    - `MainActivity.kt`: per ora contiene la verifica provvisoria del caricamento.
+  - `data/`: lettura del dataset (`TrafficRecord`, `DatasetParser`, `DatasetLoader`).
+  - `classifier/`: interfaccia `Classifier` (il k-NN di Francesco andrà qui).
+  - `pipeline/`: `PipelineConfig` e `PipelineMetrics` (worker, coda e simulatore andranno qui).
+  - `monitor/`: interfaccia `ResourceMonitor` (l'implementazione di Francesco andrà qui).
+  - `MainActivity.kt`: per ora contiene la verifica provvisoria del caricamento.
 - `app/src/main/assets/`: `train.csv` e `stream.csv`, impacchettati nell'APK e letti per nome.
 - `app/src/main/keepRules/rules.keep`: regole per R8 create dal modello di Android Studio, solo commenti, da lasciare.
 - `app/src/test/`: test unitari sul computer (parser, coda, worker, k-NN).
@@ -72,6 +72,22 @@ I tre file del package `data` sono scritti e verificati: caricano 3.625 record d
 - Legge da disco: va chiamato fuori dal thread principale.
 
 **`MainActivity.kt`**: per ora contiene solo una verifica **provvisoria** che carica i dati e scrive i conteggi in Logcat (tag `Dataset`). Legge sul thread principale, quindi va tolta quando il caricamento passa in background.
+
+**`pipeline/ProcessingQueue.kt`** (scritto il 19 novembre, compilato e testato fuori dal progetto, da applicare): la coda tra produttore e worker.
+
+- Avvolge una `ArrayBlockingQueue<TrafficRecord>` a capacità fissa (`PipelineConfig.queueCapacity`). Dentro c'è un lock con due condition (`notEmpty`, `notFull`): `put()` e `take()` sono già sincronizzate.
+- `put()` blocca il produttore se la coda è piena (backpressure); `take()` blocca il worker se è vuota. Un thread bloccato non consuma CPU: lo scheduler lo toglie dai thread pronti.
+- `sendPoisonPills(n)`: mette una pillola per worker dopo l'ultimo record. Ogni worker ne consuma una ed esce, quindi con N worker ne servono N. La coda è FIFO, quindi nessun record resta dietro una pillola.
+- `POISON_PILL` è un oggetto `TrafficRecord` unico e si riconosce per riferimento (`===`), non per contenuto: nessun record vero può essere lo stesso oggetto.
+
+**`pipeline/StreamSimulator.kt`** (scritto il 19 novembre, compilato e testato fuori dal progetto, da applicare): il produttore.
+
+- Implementa `Runnable`: non crea il thread da solo, lo crea chi avvia la pipeline (`WorkerPool`). Così la classe ha un solo compito.
+- Con `recordsPerSecond` impostato aspetta tra un record e l'altro; con `null` (benchmark) non aspetta mai e l'unico freno è la coda piena.
+- L'istante di ogni record è calcolato dall'inizio (`start + i × intervallo`) e non dal record precedente: i ritardi di `sleep()` non si sommano (niente deriva).
+- Se viene interrotto (`InterruptedException`) esce senza pillole, perché chi annulla interrompe anche i worker; ripristina il flag di interruzione, che il `catch` azzera.
+
+**`test/.../pipeline/StreamSimulatorTest.kt`**: test sul computer, senza Android. Con 4 worker e coda da 10 arrivano tutti i 10.000 record, ognuno una volta, e i worker escono; 50 record a 100 al secondo richiedono almeno 490 ms.
 
 Ogni file ha in cima un commento KDoc (`/** ... */`) che dice cosa fa.
 
@@ -179,6 +195,9 @@ Ogni voce: la decisione e il perché, così si può difendere all'orale.
 - **Interfacce scritte da Davide, implementazioni divise**: `KnnClassifier` e l'implementazione di `ResourceMonitor` sono di Francesco.
 - **Classi considerate traffico normale** (assunzione fatta sui nomi, da confermare): `Thing_Speak`, `MQTT_Publish`, `Wipro_bulb`. Le altre 9 sono attacchi.
 - **Interfaccia con Jetpack Compose**, una schermata e un `ViewModel`: proposta, da confermare.
+- **Poison pill come oggetto unico confrontato con `===`**: nessun campo speciale in `TrafficRecord`, e il worker capisce la fine del flusso senza un flag condiviso.
+- **Ritmo calcolato dall'inizio** (`start + i × intervallo`): con l'attesa misurata dal record precedente gli errori di `sleep()` si accumulerebbero.
+- **Annullamento con `interrupt()`**: `put()`, `take()` e `sleep()` sono bloccanti e reagiscono all'interruzione, quindi non serve un flag di stop.
 
 ## Misure e note per l'orale
 
@@ -193,6 +212,8 @@ Domande probabili e risposta breve:
 - *Perché misure sul telefono e non sull'emulatore?* L'emulatore condivide la CPU del computer: core e thread non rispecchiano un dispositivo reale.
 - *Perché il caricamento non può restare in `MainActivity`?* Leggere file sul thread principale blocca l'interfaccia; andrà in un thread in background.
 - *Come si vede che i worker girano davvero in parallelo?* Dalla CPU del processo: tempo CPU cresciuto più del tempo reale (oltre il 100%) vuol dire più core usati insieme.
+- *Perché N poison pill e non una?* Ogni worker che la prende esce: una sola fermerebbe un worker e lascerebbe gli altri bloccati per sempre su `take()`.
+- *Cosa fa un thread bloccato su `put()`?* Rilascia il lock della coda e dorme sulla condition `notFull`; si sveglia quando un worker fa `take()`. Non consuma CPU (niente busy waiting).
 
 ## Per Francesco: come iniziare
 

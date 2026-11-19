@@ -6,7 +6,6 @@ enum class ExecutionMode {
     SEQUENTIAL,
     PIPELINE
 }
-
 /**
  * Parametri di una singola esecuzione, scelti dall'interfaccia prima di avviarla.
  * È immutabile: una volta creata, i thread la possono leggere senza sincronizzazione.
