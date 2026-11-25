@@ -10,12 +10,12 @@ import java.util.PriorityQueue
  * @param k Numero di vicini da considerare per la votazione.
  */
 class KnnClassifier(
-    private val trainset: List<TrafficRecord>, private val k: Int
+    private val trainSet: List<TrafficRecord>, private val k: Int
 ) : Classifier {
     init {
         require(k > 0) { "k deve essere maggiore di 0" }
-        require(trainset.isNotEmpty()) { "Il dataset di training non può essere vuoto" }
-        require(k <= trainset.size) { "k non può superare la dimensione del training set" }
+        require(trainSet.isNotEmpty()) { "Il dataset di training non può essere vuoto" }
+        require(k <= trainSet.size) { "k non può superare la dimensione del training set" }
     }
 
     // Struttura di supporto locale per memorizzare vicino e distanza
@@ -37,7 +37,7 @@ class KnnClassifier(
         var attackVotes = 0
         var maxVotes = -1
 
-        for (candidate in trainset) {
+        for (candidate in trainSet) {
             val distSquared = euclideanDistanceSquared(targetFeature, candidate.features)
 
             if (maxHeap.size < k) {
@@ -53,9 +53,9 @@ class KnnClassifier(
         }
 
         // Votazione a maggioranza sui k vicini
-        whule(maxHeap.isNotEmpty()) {
+        while (maxHeap.isNotEmpty()) {
             val neighbor = maxHeap.poll().record
-            lavelVotes[neighbor.label] = (labelVotes[neighbor.label] ?: 0) + 1
+            labelVotes[neighbor.label] = (labelVotes[neighbor.label] ?: 0) + 1
             if (neighbor.isAttack) attackVotes++
         }
 
