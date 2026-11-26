@@ -15,9 +15,3 @@
 local.properties
 tools/RT_IOT2022.csv
 
-gradle.properties
-gradlew
-gradlew.bat
-gradle.xml
-gradle-wrapper.jar
-gradle-wrapper.properties
